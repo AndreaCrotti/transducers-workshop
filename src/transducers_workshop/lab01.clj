@@ -46,9 +46,21 @@
 ; Place the transducers into the "xform" function. Test it using the
 ; "products" function.
 
+(defn- merge-attrs
+  [product]
+  (merge (:product product)
+         (select-keys product [:fee-attributes :created-at])))
+
+(defn- to-java-util
+  [product]
+  (assoc product
+         :created-at
+         (java.util.Date. (:created-at product))))
+
 (def xform
   ;; ... compose transducers here
-  (comp))
+  (comp (map merge-attrs)
+        (map to-java-util)))
 
 ;; tests your progress with:
 (defn products [feed]
@@ -68,10 +80,49 @@
 
 ; Bonus: can you answer why wea are using eduction here? Why not sequence or transduce?
 
+(def transformations
+  {:mappers [merge-attrs to-java-util]
+   :filters []})
+
+(transduce
+ (comp (map inc))
+ +
+ (range 10))
+
+(defn- visible-online?
+  [_]
+  (fn [product]
+    (every? true? ((juxt :visible :online) product))))
+
+(defn- by-company
+  [params]
+  (if-let [company (:company-id params)]
+    (fn [product]
+      (= (:company-id company) company))))
+
+(defn- by-repayment-method
+  [params]
+  (if-let [method (:payment-method-repayment params)]
+    (fn [product]
+      (:payment-method-repayment product))))
+
+(defn- by-loan-amount
+  [params]
+  (if-let [amount (:loan-amount params)]
+    (fn [product]
+      (and (>= amount (:min-loan-amount product))
+           (<= amount (:max-loan-amount product))))))
+
 (defn xform [params]
   ;; ... add your filters to the comp.
   ;; They depend on the content of params.
-  (comp))
+  (let [mappers [merge-attrs to-java-util]
+        filters [visible-online? by-company by-repayment-method]
+        ops (concat (map map mappers)
+                    (filter some?
+                            (map filter filters)))]
+
+    (apply comp ops)))
 
 ;; tests your progress with:
 (defn products [params feed]
