@@ -80,49 +80,50 @@
 
 ; Bonus: can you answer why wea are using eduction here? Why not sequence or transduce?
 
-(def transformations
-  {:mappers [merge-attrs to-java-util]
-   :filters []})
-
-(transduce
- (comp (map inc))
- +
- (range 10))
-
 (defn- visible-online?
-  [_]
-  (fn [product]
-    (every? true? ((juxt :visible :online) product))))
+  [_ product]
+  (every? true? ((juxt :visible :online) product)))
 
 (defn- by-company
-  [params]
-  (if-let [company (:company-id params)]
-    (fn [product]
-      (= (:company-id company) company))))
+  [val product]
+  (= (:company-id product) val))
 
 (defn- by-repayment-method
-  [params]
-  (if-let [method (:payment-method-repayment params)]
-    (fn [product]
-      (:payment-method-repayment product))))
+  [val product]
+  (= (:payment-method-repayment product) val))
 
 (defn- by-loan-amount
-  [params]
-  (if-let [amount (:loan-amount params)]
-    (fn [product]
-      (and (>= amount (:min-loan-amount product))
-           (<= amount (:max-loan-amount product))))))
+  [val product]
+  (and (>= val (:min-loan-amount product))
+       (<= val (:max-loan-amount product))))
+
+(def transformations
+  {:mappers [merge-attrs to-java-util]
+   :filters [{:fn visible-online?
+              :getter (constantly true)}
+
+             {:fn by-company
+              :getter :company-id}
+
+             {:fn by-repayment-method
+              :getter :payment-method-repayment}
+             
+             {:fn by-loan-amount
+              :getter :loan-amount}]})
+
+(defn- compose-transformations
+  [txs params]
+  (concat (map map (:mappers txs))
+          (filter some?
+                  (for [fn-filt (:filters txs)]
+                    (when-let [val ((:getter fn-filt) params)]
+                      (filter (partial (:fn fn-filt) val)))))))
 
 (defn xform [params]
   ;; ... add your filters to the comp.
   ;; They depend on the content of params.
-  (let [mappers [merge-attrs to-java-util]
-        filters [visible-online? by-company by-repayment-method]
-        ops (concat (map map mappers)
-                    (filter some?
-                            (map filter filters)))]
-
-    (apply comp ops)))
+  (let [txs (compose-transformations transformations params)]
+    (apply comp txs)))
 
 ;; tests your progress with:
 (defn products [params feed]
