@@ -113,17 +113,17 @@
 
 (defn- compose-transformations
   [txs params]
-  (concat (map map (:mappers txs))
-          (filter some?
-                  (for [fn-filt (:filters txs)]
-                    (when-let [val ((:getter fn-filt) params)]
-                      (filter (partial (:fn fn-filt) val)))))))
+  (apply comp
+         (concat (map map (:mappers txs))
+                 (filter some?
+                         (for [{fnf :fn getter :getter} (:filters txs)]
+                           (when-let [val (getter params)]
+                             (filter (partial fnf val))))))))
 
 (defn xform [params]
   ;; ... add your filters to the comp.
   ;; They depend on the content of params.
-  (let [txs (compose-transformations transformations params)]
-    (apply comp txs)))
+  (compose-transformations transformations params))
 
 ;; tests your progress with:
 (defn products [params feed]
