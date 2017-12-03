@@ -29,11 +29,20 @@
 
 (defn log
   [enabled]
+  ;; where rf is always the reducing function in this case
   (fn [rf]
     (fn
-      ([] nil)
-      ([result] nil)
-      ([result input] nil))))
+      ;; this assumes that also the reducing function
+      ;; passed in support the various different arities
+      ([] (rf))
+      ([result] (rf result))
+      ([result input]
+       (do
+         (when enabled (println (if result (str "acc " result) "") "el" input))
+         (rf result input))))))
+
+(map inc (range 10))
+
 
 ;; When "enabled" is false, nothing is printed on screen:
 (sequence (comp (log false) (filter odd?) (map inc)) (range 10))
@@ -41,7 +50,7 @@
 
 ; But when "enabled" is "true" we can see both the results so far as well as
 ; the current element at each step during the reduction process.
-(transduce (comp (log true) (filter odd?) (map inc)) + (range 5))
+(transduce (comp (log true) (map dec) (filter odd?) (map inc)) + (range 5))
 ;; acc 0 el 0
 ;; acc 0 el 1
 ;; acc 2 el 2
@@ -85,17 +94,18 @@
    (fn [rf]
      (let [acc (volatile! [0 0])]
        (fn
-         ([] "complete here")
-         ([result] "complete here")
+         ([] (rf))
+         ([result] (rf result))
          ([prev el]
-          (vswap! acc (fn [[sum cnt]] "complete here"))
-          "return something here")))))
+          (vswap! acc (fn [[sum cnt]] (vector (+ el sum) (inc cnt))))
+          (rf prev (/ (@acc 0) (@acc 1))))))))
   ([coll]
    (sequence (moving-average) coll)))
 
 ; This is what you should see for a simple example:
-(sequence (comp (map inc) (moving-average)) (range 10))
+(sequence (comp (log true) (map inc) (moving-average) (log true)) (range 10))
 ;; (1 3/2 2 5/2 3 7/2 4 9/2 5 11/2)
+
 
 ; The following adds a little more complexity and size to the problem
 ; by using mapcat to generate much more input.
